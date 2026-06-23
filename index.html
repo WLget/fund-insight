@@ -237,6 +237,23 @@ body {
 .sub-tab:hover { color: var(--ink); }
 .sub-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
+/* ===== Trend tabs ===== */
+.trend-tabs { display: flex; gap: 0.35rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.trend-tab {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-family: inherit;
+  border-radius: 4px;
+  border: 1px solid var(--rule);
+  transition: all 0.2s;
+}
+.trend-tab:hover { color: var(--ink); border-color: var(--muted); }
+.trend-tab.active { color: var(--accent); border-color: var(--accent); background: rgba(16,185,129,0.1); }
+
 /* ===== Table ===== */
 .table-wrap {
   overflow-x: auto;
@@ -480,6 +497,203 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .site-footer a { color: var(--accent); text-decoration: none; }
 
+/* ===== Pagination ===== */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.5rem 0;
+}
+.page-info {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.page-size-selector select {
+  background: var(--bg2);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  padding: 0.25rem 0.4rem;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.page-size-selector select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.page-nav {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+.page-btn {
+  background: var(--bg2);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  padding: 0.3rem 0.6rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-family: inherit;
+  transition: all 0.15s;
+  min-width: 2rem;
+  text-align: center;
+}
+.page-btn:hover:not(:disabled):not(.active) {
+  background: var(--rule);
+  border-color: var(--muted);
+}
+.page-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.page-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.page-ellipsis {
+  padding: 0.3rem 0.2rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* ===== 潜力分析报告弹窗样式 ===== */
+.report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rule);
+}
+.report-title-area { flex: 1; }
+.score-ring-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+.score-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.report-section {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg);
+  border-radius: 10px;
+  border: 1px solid var(--rule);
+}
+.report-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.report-section-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  background: var(--accent);
+  border-radius: 2px;
+}
+/* 维度评分条 */
+.score-dim { margin-bottom: 0.75rem; }
+.score-dim:last-child { margin-bottom: 0; }
+.score-dim-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+}
+.score-dim-bar {
+  height: 6px;
+  background: var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.score-dim-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+.score-dim-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.score-dim-details span strong { color: var(--ink); }
+.score-dim-details em { color: var(--accent2); font-style: normal; }
+/* 潜力理由列表 */
+.reason-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.reason-list li { margin-bottom: 0.3rem; }
+/* 风险提示 */
+.risk-item {
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.4rem;
+  border-left: 3px solid var(--muted);
+  background: var(--bg2);
+  border-radius: 0 6px 6px 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.risk-item:last-child { margin-bottom: 0; }
+/* 同类排名百分位 */
+.percentile-row { display: flex; flex-direction: column; gap: 0.6rem; }
+.percentile-item { display: flex; align-items: center; gap: 0.75rem; }
+.percentile-label { width: 60px; font-size: 0.82rem; color: var(--muted); flex-shrink: 0; }
+.percentile-bar-bg {
+  flex: 1;
+  height: 8px;
+  background: var(--rule);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.percentile-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+.percentile-val { width: 60px; font-size: 0.82rem; font-weight: 600; color: var(--accent2); text-align: right; flex-shrink: 0; }
+/* 原始数据折叠 */
+.raw-data-section .raw-data-toggle { cursor: pointer; user-select: none; }
+.raw-data-section .raw-data-toggle:hover { color: var(--accent); }
+.raw-data-section .toggle-arrow { font-size: 0.78rem; color: var(--muted); font-weight: 400; }
+.raw-data-section.expanded .toggle-arrow::after { content: '收起'; }
+.raw-data-section:not(.expanded) .toggle-arrow::after { content: '展开'; }
+.raw-data-body { display: none; margin-top: 0.75rem; }
+.raw-data-section.expanded .raw-data-body { display: block; }
+
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
   .stats-bar { grid-template-columns: repeat(2, 1fr); }
@@ -496,6 +710,9 @@ tbody tr:last-child td { border-bottom: none; }
 ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 </style>
+  <script>
+    // API 走同域，由 Cloudflare Pages Functions 代理
+  </script>
 </head>
 <body>
 
@@ -568,6 +785,20 @@ tbody tr:last-child td { border-bottom: none; }
         </select>
       </div>
       <div class="filter-group">
+        <label>行业板块</label>
+        <select id="rank-sector">
+          <option value="all">全部</option>
+          <option value="科技">科技</option>
+          <option value="消费">消费</option>
+          <option value="医药">医药</option>
+          <option value="新能源">新能源</option>
+          <option value="金融">金融</option>
+          <option value="资源">资源</option>
+          <option value="军工">军工</option>
+          <option value="传媒">传媒</option>
+        </select>
+      </div>
+      <div class="filter-group">
         <label>排序</label>
         <select id="rank-sort">
           <option value="desc">涨幅从高到低</option>
@@ -597,6 +828,7 @@ tbody tr:last-child td { border-bottom: none; }
         </tbody>
       </table>
     </div>
+    <div id="rank-pagination" class="pagination-bar"></div>
   </div>
 </section>
 
@@ -626,6 +858,13 @@ tbody tr:last-child td { border-bottom: none; }
           <option value="year">近一年</option>
         </select>
       </div>
+      <div class="filter-group">
+        <label>排序方式</label>
+        <select id="potential-sort">
+          <option value="period">按阶段涨幅</option>
+          <option value="score">按推荐评分</option>
+        </select>
+      </div>
       <button class="btn" id="potential-refresh">重新筛选</button>
     </div>
 
@@ -640,39 +879,30 @@ tbody tr:last-child td { border-bottom: none; }
   <div class="container">
     <h2 class="section-title"><span class="icon">📊</span> 市场分析</h2>
 
+    <div class="sub-tabs" id="market-period-tabs">
+      <button class="sub-tab" data-period="day">今日</button>
+      <button class="sub-tab active" data-period="week">近一周</button>
+      <button class="sub-tab" data-period="month">近一月</button>
+      <button class="sub-tab" data-period="quarter">近三月</button>
+      <button class="sub-tab" data-period="half">近半年</button>
+      <button class="sub-tab" data-period="year">近一年</button>
+    </div>
+
     <div class="card-grid">
       <div class="card" style="grid-column: 1 / -1;">
         <div class="card-header">
-          <div>
-            <div class="card-title">市场概览</div>
-            <div class="card-code">基于全市场基金数据综合分析</div>
-          </div>
+          <div><div class="card-title">类型概览</div><div class="card-code" id="market-period-label">近一周各类型表现</div></div>
         </div>
-        <div class="card-metrics" id="market-overview">
-          <div class="card-metric">
-            <div class="card-metric-value up" id="mkt-equity">--</div>
-            <div class="card-metric-label">股票型基金平均</div>
-          </div>
-          <div class="card-metric">
-            <div class="card-metric-value" id="mkt-mix">--</div>
-            <div class="card-metric-label">混合型基金平均</div>
-          </div>
-          <div class="card-metric">
-            <div class="card-metric-value" id="mkt-bond">--</div>
-            <div class="card-metric-label">债券型基金平均</div>
-          </div>
-          <div class="card-metric">
-            <div class="card-metric-value" id="mkt-index">--</div>
-            <div class="card-metric-label">指数型基金平均</div>
-          </div>
-          <div class="card-metric">
-            <div class="card-metric-value" id="mkt-qdii">--</div>
-            <div class="card-metric-label">QDII基金平均</div>
-          </div>
-          <div class="card-metric">
-            <div class="card-metric-value" id="mkt-money">--</div>
-            <div class="card-metric-label">货币基金平均</div>
-          </div>
+        <div style="overflow-x:auto;">
+          <table style="min-width:700px;margin:0;">
+            <thead>
+              <tr>
+                <th>基金类型</th><th>基金数量</th><th>平均涨跌</th><th>涨跌比</th><th>最高涨幅</th><th>最低涨幅</th>
+              </tr>
+            </thead>
+            <tbody id="market-type-table">
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -683,9 +913,20 @@ tbody tr:last-child td { border-bottom: none; }
     </figure>
 
     <figure class="chart-figure">
-      <figcaption>近期市场热点板块</figcaption>
+      <figcaption>行业板块表现（基于基金名称关键词匹配）</figcaption>
       <div id="chart-sector" style="width:100%;min-height:360px"></div>
     </figure>
+
+    <div class="card-grid" style="margin-top:1.5rem;">
+      <div class="card">
+        <div class="card-header"><div class="card-title">🔥 涨幅 TOP5</div></div>
+        <div id="mkt-top-gainers"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📉 跌幅 TOP5</div></div>
+        <div id="mkt-top-losers"></div>
+      </div>
+    </div>
 
     <h3 style="margin: 2rem 0 1rem; font-size: 1.1rem;">市场观点与信息来源</h3>
     <div class="card-grid" id="market-insights">
@@ -715,6 +956,20 @@ tbody tr:last-child td { border-bottom: none; }
           <option value="QDII">QDII</option>
           <option value="货币型">货币型</option>
           <option value="FOF">FOF</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>行业板块</label>
+        <select id="fund-sector">
+          <option value="all">全部</option>
+          <option value="科技">科技</option>
+          <option value="消费">消费</option>
+          <option value="医药">医药</option>
+          <option value="新能源">新能源</option>
+          <option value="金融">金融</option>
+          <option value="资源">资源</option>
+          <option value="军工">军工</option>
+          <option value="传媒">传媒</option>
         </select>
       </div>
       <div class="filter-group">
@@ -748,6 +1003,7 @@ tbody tr:last-child td { border-bottom: none; }
         </tbody>
       </table>
     </div>
+    <div id="fund-list-pagination" class="pagination-bar"></div>
   </div>
 </section>
 
@@ -762,22 +1018,28 @@ tbody tr:last-child td { border-bottom: none; }
 <!-- Fund Detail Modal -->
 <div class="modal-overlay" id="fund-modal">
   <div class="modal">
-    <div class="modal-header">
-      <div>
-        <div class="modal-title" id="modal-fund-name">--</div>
-        <div class="card-code" id="modal-fund-code">--</div>
+    <!-- 潜力分析报告内容区（潜力筛选页使用） -->
+    <div id="modal-report"></div>
+
+    <!-- 原详情弹窗内容区（排行/基金大全页使用，默认隐藏） -->
+    <div id="modal-legacy" style="display:none;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title" id="modal-fund-name">--</div>
+          <div class="card-code" id="modal-fund-code">--</div>
+        </div>
+        <button class="modal-close" id="modal-close">&times;</button>
       </div>
-      <button class="modal-close" id="modal-close">&times;</button>
+      <div class="detail-grid" id="modal-details">
+        <!-- dynamically filled -->
+      </div>
+      <div class="detail-section-title">近期业绩</div>
+      <figure class="chart-figure">
+        <div id="chart-fund-trend" style="width:100%;min-height:280px"></div>
+      </figure>
+      <div class="detail-section-title">基金经理</div>
+      <div id="modal-manager"></div>
     </div>
-    <div class="detail-grid" id="modal-details">
-      <!-- dynamically filled -->
-    </div>
-    <div class="detail-section-title">近期业绩</div>
-    <figure class="chart-figure">
-      <div id="chart-fund-trend" style="width:100%;min-height:280px"></div>
-    </figure>
-    <div class="detail-section-title">基金经理</div>
-    <div id="modal-manager"></div>
   </div>
 </div>
 

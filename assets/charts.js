@@ -11,12 +11,20 @@
   var bg2 = style.getPropertyValue('--bg2').trim();
 
   // ----- Market Charts -----
-  window.renderMarketCharts = function(types, avgs) {
+  window.renderMarketCharts = function(types, avgs, periodLabel, sectorNames, sectorAvgs, sectorCounts) {
+    periodLabel = periodLabel || '近一周';
     // Type distribution bar chart
     var chartType = echarts.init(document.getElementById('chart-type-dist'), null, { renderer: 'svg' });
     chartType.setOption({
       animation: false,
-      tooltip: { trigger: 'axis', appendToBody: true, axisPointer: { type: 'shadow' } },
+      tooltip: {
+        trigger: 'axis',
+        appendToBody: true,
+        axisPointer: { type: 'shadow' },
+        formatter: function(params) {
+          return params[0].name + '<br/>' + periodLabel + '平均涨跌：' + params[0].value.toFixed(2) + '%';
+        }
+      },
       grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
       xAxis: {
         type: 'category',
@@ -39,17 +47,23 @@
     });
     window.addEventListener('resize', function() { chartType.resize(); });
 
-    // Sector heat/radar simulation
-    var sectors = ['科技','消费','医药','新能源','金融','地产','军工','有色','农业','传媒'];
-    var sectorData = sectors.map(function() { return rand(-5, 8); });
+    // Sector bar chart (基于基金名称关键词匹配)
     var chartSector = echarts.init(document.getElementById('chart-sector'), null, { renderer: 'svg' });
     chartSector.setOption({
       animation: false,
-      tooltip: { trigger: 'axis', appendToBody: true },
+      tooltip: {
+        trigger: 'axis',
+        appendToBody: true,
+        axisPointer: { type: 'shadow' },
+        formatter: function(params) {
+          var idx = params[0].dataIndex;
+          return sectorNames[idx] + '<br/>' + periodLabel + '平均涨跌：' + params[0].value.toFixed(2) + '%<br/>匹配基金：' + sectorCounts[idx] + '只';
+        }
+      },
       grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
       xAxis: {
         type: 'category',
-        data: sectors,
+        data: sectorNames,
         axisLine: { lineStyle: { color: rule } },
         axisLabel: { color: muted }
       },
@@ -60,17 +74,10 @@
         axisLabel: { color: muted, formatter: '{value}%' }
       },
       series: [{
-        type: 'line',
-        data: sectorData,
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 8,
-        lineStyle: { color: accent2, width: 2 },
-        itemStyle: { color: accent2 },
-        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
-          { offset: 0, color: accent2 + '40' },
-          { offset: 1, color: accent2 + '05' }
-        ]}}
+        type: 'bar',
+        data: sectorAvgs.map(function(v) { return { value: v, itemStyle: { color: v >= 0 ? accent : '#ef4444' } }; }),
+        barWidth: '50%',
+        label: { show: true, position: 'top', color: ink, formatter: function(p) { return p.value.toFixed(2) + '%'; } }
       }]
     });
     window.addEventListener('resize', function() { chartSector.resize(); });
@@ -114,7 +121,5 @@
     });
     window.addEventListener('resize', function() { chart.resize(); });
   };
-
-  function rand(min, max) { return Math.random() * (max - min) + min; }
 
 })();
