@@ -18,80 +18,44 @@
   let remainingSeconds = 300;
   const REFRESH_INTERVAL = 5 * 60 * 1000; // 5分钟
 
+  // ===== 分页状态 =====
+  let rankPageSize = 50;      // 排行页每页条数（可切换 20/50/100）
+  let rankCurrentPage = 1;    // 当前页码
+  let fundListPageSize = 50;  // 基金大全页每页条数
+  let fundListCurrentPage = 1;
+
   // ===== DOM Helpers =====
   function $(sel) { return document.querySelector(sel); }
   function $$(sel) { return document.querySelectorAll(sel); }
 
-  // ===== CORS Proxy =====
-  // Cloudflare Worker 专用代理，解决天天基金网跨域和反爬问题
-  // 部署教程见仓库根目录 cors-proxy.js
-  const PROXY_URL = 'https://fund-insight-proxy.wlget.workers.dev/?url=';
+  // ===== API Helper =====
+  // API_BASE_URL 可在部署时通过 window 注入，指向 Cloudflare Workers 域名
+  // 部署场景说明：
+  //   场景1 - Workers + Pages 同域（推荐）：API_BASE_URL 留空，前端直接走相对路径 '/api'
+  //   场景2 - 跨域部署（如 GitHub Pages）：在 index.html 中设置:
+  //           <script>window.API_BASE_URL = 'https://fund-insight-api.xxx.workers.dev';</script>
+  const API_BASE = (window.API_BASE_URL || '') + '/api';
 
-  async function fetchWithCors(url) {
-    const proxyUrl = PROXY_URL + encodeURIComponent(url);
-    const resp = await fetch(proxyUrl);
+  async function apiGet(path) {
+    const resp = await fetch(API_BASE + path);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    return resp;
+    const json = await resp.json();
+    if (json.code !== 0) throw new Error(json.msg || 'API Error');
+    return json;
   }
 
   // ===== API Fetch Functions =====
 
   async function fetchRankData() {
     try {
-      const url = 'http://fund.eastmoney.com/data/rankhandler.aspx?op=ph&dt=kf&ft=all&rs=&gs=0&sc=zzf&st=desc&pi=1&pn=10000&dx=1&v=' + Math.random();
-      const resp = await fetchWithCors(url);
-      const text = await resp.text();
+      const json = await apiGet('/rank');
+      allFunds = json.data;
+      lastUpdateTime = json.time || Date.now();
 
-      const startIdx = text.indexOf('{');
-      const endIdx = text.lastIndexOf('}');
-      if (startIdx === -1 || endIdx === -1) throw new Error('未找到有效数据');
-      const jsObjStr = text.substring(startIdx, endIdx + 1);
-
-      let raw;
-      try {
-        raw = new Function('return ' + jsObjStr)();
-      } catch (e) {
-        throw new Error('JS对象解析失败: ' + e.message);
-      }
-
-      const datas = raw && raw.datas ? raw.datas : [];
-      if (datas.length === 0) throw new Error('排行数据为空');
-
-      // 获取类型映射
-      if (Object.keys(fundTypeMap).length === 0) {
-        await fetchFundTypeMap();
-      }
-
-      const records = datas.map(function(item) {
-        var parts = item.split(',');
-        if (parts.length < 16) return null;
-
-        var code = parts[0] || '';
-        var dayVal = parseFloat(parts[6]);
-        var weekVal = parseFloat(parts[7]);
-        var monthVal = parseFloat(parts[8]);
-        var quarterVal = parseFloat(parts[9]);
-        var halfVal = parseFloat(parts[10]);
-        var ytdVal = parseFloat(parts[15]);
-
-        return {
-          code: code,
-          name: parts[1] || '',
-          nav: parseFloat(parts[4]) || 0,
-          cumNav: parseFloat(parts[5]) || 0,
-          dayChange: isNaN(dayVal) ? 0 : dayVal,
-          weekChange: isNaN(weekVal) ? 0 : weekVal,
-          monthChange: isNaN(monthVal) ? 0 : monthVal,
-          quarterChange: isNaN(quarterVal) ? 0 : quarterVal,
-          halfYearChange: isNaN(halfVal) ? 0 : halfVal,
-          yearChange: isNaN(ytdVal) ? 0 : ytdVal,
-          type: fundTypeMap[code] || '',
-          fee: parts[20] || '',
-        };
-      }).filter(Boolean);
-
-      allFunds = records;
-      lastUpdateTime = Date.now();
+      // 填充类型映射（用于 potential/market 筛选）
+      allFunds.forEach(function(f) {
+        if (!fundTypeMap[f.code]) fundTypeMap[f.code] = f.type;
+      });
       return true;
     } catch (err) {
       console.error('[API] fetch rank failed:', err);
@@ -99,36 +63,10 @@
     }
   }
 
-  async function fetchFundTypeMap() {
-    try {
-      const url = 'http://fund.eastmoney.com/js/fundcode_search.js';
-      const resp = await fetchWithCors(url);
-      const text = await resp.text();
-      const match = text.match(/var r = (\[[\s\S]*?\]);/);
-      if (match) {
-        const raw = JSON.parse(match[1]);
-        raw.forEach(function(item) {
-          fundTypeMap[item[0]] = item[3];
-        });
-      }
-    } catch (err) {
-      console.warn('[API] fetch type map failed:', err);
-    }
-  }
-
   async function fetchFundList() {
     try {
-      const url = 'http://fund.eastmoney.com/js/fundcode_search.js';
-      const resp = await fetchWithCors(url);
-      const text = await resp.text();
-      const match = text.match(/var r = (\[[\s\S]*?\]);/);
-      if (!match) throw new Error('解析基金列表失败');
-
-      const raw = JSON.parse(match[1]);
-      const funds = raw.map(function(item) {
-        return { code: item[0], name: item[2], type: item[3] };
-      });
-
+      const json = await apiGet('/fund-list');
+      const funds = json.data;
       funds.forEach(function(f) {
         if (!fundTypeMap[f.code]) fundTypeMap[f.code] = f.type;
       });
@@ -141,65 +79,14 @@
 
   async function fetchFundDetail(code) {
     try {
-      const [detailResp, infoResp] = await Promise.all([
-        fetchWithCors('http://fund.eastmoney.com/pingzhongdata/' + code + '.js'),
-        fetchWithCors('http://fund.eastmoney.com/' + code + '.html'),
+      const [detailJson, infoJson] = await Promise.all([
+        apiGet('/fund/' + code + '/detail'),
+        apiGet('/fund/' + code + '/info'),
       ]);
 
-      const detailJs = await detailResp.text();
-      const infoHtml = await infoResp.text();
-
-      // 解析净值走势
-      let navHistory = [];
-      const navMatch = detailJs.match(/var Data_netWorthTrend\s*=\s*(\[[\s\S]*?\]);/);
-      if (navMatch) {
-        try {
-          navHistory = JSON.parse(navMatch[1]).map(function(item) {
-            return {
-              date: typeof item.x === 'number' ? new Date(item.x).toISOString().slice(0, 10) : String(item.x),
-              value: parseFloat(item.y) || 0,
-            };
-          });
-        } catch (e) {
-          const items = navMatch[1].match(/\{x:[^}]+\}/g) || [];
-          navHistory = items.map(function(s) {
-            const xm = s.match(/x:(\d+)/);
-            const ym = s.match(/y:([\d.]+)/);
-            return {
-              date: xm ? new Date(parseInt(xm[1])).toISOString().slice(0, 10) : '',
-              value: ym ? parseFloat(ym[1]) : 0,
-            };
-          });
-        }
-      }
-
-      // 解析基金信息
-      let manager = '';
-      const mgrPatterns = [
-        /基金经理[：:]\s*<a[^>]*>([^<]+)<\/a>/,
-        /基金经理[：:]\s*<span[^>]*>([^<]+)<\/span>/,
-        /基金经理[：:]\s*([^\s<,]+(?:[\s,][^\s<,]+)?)/,
-      ];
-      for (var i = 0; i < mgrPatterns.length; i++) {
-        var m = infoHtml.match(mgrPatterns[i]);
-        if (m) { manager = m[1].trim(); break; }
-      }
-
-      let fundSize = '';
-      var sm = infoHtml.match(/基金规模[：:]\s*([\d.]+)\s*亿元/);
-      if (sm) fundSize = sm[1] + '亿元';
-
-      let establishDate = '';
-      var dm = infoHtml.match(/成立日期[：:]\s*(\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2})/);
-      if (dm) establishDate = dm[1].replace(/[\.\/]/g, '-');
-
-      let risk = '';
-      var rm = infoHtml.match(/风险等级[：:]\s*([^<>\s]+)/);
-      if (rm) risk = rm[1].trim();
-
       return {
-        detail: { navHistory: navHistory },
-        info: { fundSize: fundSize, establishDate: establishDate, manager: manager, risk: risk, code: code },
+        detail: detailJson.data,
+        info: infoJson.data,
       };
     } catch (err) {
       console.error('[API] fetch detail failed:', err);
@@ -300,26 +187,34 @@
   function renderRanking() {
     var list = allFunds.slice();
     if (rankTypeFilter !== 'all') {
-      list = list.filter(function(f) { return f.type === rankTypeFilter; });
+      list = list.filter(function(f) { return f.type && f.type.indexOf(rankTypeFilter) === 0; });
     }
     list.sort(function(a, b) {
       var va = getPeriodValue(a, currentPeriod);
       var vb = getPeriodValue(b, currentPeriod);
       return rankSort === 'desc' ? vb - va : va - vb;
     });
-    list = list.slice(0, 100);
+
+    // 分页
+    var totalItems = list.length;
+    var totalPages = Math.max(1, Math.ceil(totalItems / rankPageSize));
+    if (rankCurrentPage > totalPages) rankCurrentPage = totalPages;
+    if (rankCurrentPage < 1) rankCurrentPage = 1;
+    var startIdx = (rankCurrentPage - 1) * rankPageSize;
+    var pageList = list.slice(startIdx, startIdx + rankPageSize);
 
     var tbody = $('#rank-tbody');
-    if (list.length === 0) {
+    if (totalItems === 0) {
       tbody.innerHTML = '<tr><td colspan="9" class="loading">暂无数据</td></tr>';
+      renderRankPagination(0, 0, 0);
       return;
     }
 
-    tbody.innerHTML = list.map(function(f, i) {
+    tbody.innerHTML = pageList.map(function(f, i) {
       var pv = getPeriodValue(f, currentPeriod);
       var cls = pv > 0 ? 'up' : (pv < 0 ? 'down' : 'neutral');
       return '<tr>' +
-        '<td>' + (i+1) + '</td>' +
+        '<td>' + (startIdx + i + 1) + '</td>' +
         '<td class="fund-name">' + escHtml(f.name) + '</td>' +
         '<td class="fund-code">' + f.code + '</td>' +
         '<td><span class="tag ' + getTypeClass(f.type) + '">' + escHtml(f.type) + '</span></td>' +
@@ -330,6 +225,74 @@
         '<td><button class="btn" style="padding:0.25rem 0.5rem;font-size:0.75rem;" onclick="window.showFundDetail(\'' + f.code + '\')">详情</button></td>' +
         '</tr>';
     }).join('');
+
+    renderRankPagination(totalItems, totalPages, startIdx);
+  }
+
+  function renderRankPagination(totalItems, totalPages, startIdx) {
+    var container = $('#rank-pagination');
+    if (!container) return;
+
+    if (totalItems === 0 || totalPages <= 1) {
+      container.innerHTML = '<span style="color:var(--muted);font-size:0.85rem;">共 ' + totalItems + ' 条数据</span>';
+      return;
+    }
+
+    var endIdx = Math.min(startIdx + rankPageSize, totalItems);
+    var pages = [];
+    var startPage = Math.max(1, rankCurrentPage - 2);
+    var endPage = Math.min(totalPages, rankCurrentPage + 2);
+
+    // 上一页
+    pages.push('<button class="page-btn" data-page="' + (rankCurrentPage - 1) + '" ' + (rankCurrentPage <= 1 ? 'disabled' : '') + '>上一页</button>');
+
+    // 第一页
+    if (startPage > 1) {
+      pages.push('<button class="page-btn" data-page="1">1</button>');
+      if (startPage > 2) pages.push('<span class="page-ellipsis">...</span>');
+    }
+
+    for (var p = startPage; p <= endPage; p++) {
+      pages.push('<button class="page-btn' + (p === rankCurrentPage ? ' active' : '') + '" data-page="' + p + '">' + p + '</button>');
+    }
+
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) pages.push('<span class="page-ellipsis">...</span>');
+      pages.push('<button class="page-btn" data-page="' + totalPages + '">' + totalPages + '</button>');
+    }
+
+    // 下一页
+    pages.push('<button class="page-btn" data-page="' + (rankCurrentPage + 1) + '" ' + (rankCurrentPage >= totalPages ? 'disabled' : '') + '>下一页</button>');
+
+    container.innerHTML =
+      '<div class="page-info">共 ' + totalItems + ' 条，第 ' + rankCurrentPage + '/' + totalPages + ' 页，显示 ' + (startIdx + 1) + '-' + endIdx + ' 条</div>' +
+      '<div class="page-size-selector">' +
+        '<label>每页</label>' +
+        '<select id="rank-page-size">' +
+          '<option value="20"' + (rankPageSize===20?' selected':'') + '>20</option>' +
+          '<option value="50"' + (rankPageSize===50?' selected':'') + '>50</option>' +
+          '<option value="100"' + (rankPageSize===100?' selected':'') + '>100</option>' +
+        '</select>' +
+        '<label>条</label>' +
+      '</div>' +
+      '<div class="page-nav">' + pages.join('') + '</div>';
+
+    // 绑定事件
+    container.querySelectorAll('.page-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var pg = parseInt(this.dataset.page, 10);
+        if (!isNaN(pg) && pg >= 1 && pg <= totalPages) {
+          rankCurrentPage = pg;
+          renderRanking();
+        }
+      });
+    });
+
+    $('#rank-page-size').addEventListener('change', function() {
+      rankPageSize = parseInt(this.value, 10) || 50;
+      rankCurrentPage = 1;
+      renderRanking();
+    });
   }
 
   function escHtml(s) {
@@ -399,7 +362,7 @@
     var mapKeys = { '股票型':'equity','混合型':'mix','债券型':'bond','指数型':'index','QDII':'qdii','货币型':'money' };
 
     types.forEach(function(t) {
-      var funds = allFunds.filter(function(f) { return f.type === t; });
+      var funds = allFunds.filter(function(f) { return f.type && f.type.indexOf(t) === 0; });
       var avg = funds.length ? funds.reduce(function(s,f) { return s + f.dayChange; }, 0) / funds.length : 0;
       var el = $('#mkt-' + mapKeys[t]);
       if (el) {
@@ -427,7 +390,7 @@
       window.renderMarketCharts(
         types,
         types.map(function(t) {
-          var funds = allFunds.filter(function(f) { return f.type === t; });
+          var funds = allFunds.filter(function(f) { return f.type && f.type.indexOf(t) === 0; });
           return funds.length ? funds.reduce(function(s,f) { return s + f.dayChange; }, 0) / funds.length : 0;
         })
       );
@@ -446,15 +409,24 @@
                f.code.indexOf(search) !== -1;
       });
     }
-    if (type !== 'all') list = list.filter(function(f) { return f.type === type; });
+    if (type !== 'all') list = list.filter(function(f) { return f.type && f.type.indexOf(type) === 0; });
+
+    // 分页
+    var totalItems = list.length;
+    var totalPages = Math.max(1, Math.ceil(totalItems / fundListPageSize));
+    if (fundListCurrentPage > totalPages) fundListCurrentPage = totalPages;
+    if (fundListCurrentPage < 1) fundListCurrentPage = 1;
+    var startIdx = (fundListCurrentPage - 1) * fundListPageSize;
+    var pageList = list.slice(startIdx, startIdx + fundListPageSize);
 
     var tbody = $('#fund-tbody');
-    if (list.length === 0) {
+    if (totalItems === 0) {
       tbody.innerHTML = '<tr><td colspan="10" class="loading">未找到匹配的基金</td></tr>';
+      renderFundListPagination(0, 0, 0);
       return;
     }
 
-    tbody.innerHTML = list.slice(0, 100).map(function(f) {
+    tbody.innerHTML = pageList.map(function(f, i) {
       return '<tr>' +
         '<td class="fund-code">' + f.code + '</td>' +
         '<td class="fund-name">' + escHtml(f.name) + '</td>' +
@@ -468,6 +440,70 @@
         '<td><button class="btn" style="padding:0.25rem 0.5rem;font-size:0.75rem;" onclick="window.showFundDetail(\'' + f.code + '\')">详情</button></td>' +
         '</tr>';
     }).join('');
+
+    renderFundListPagination(totalItems, totalPages, startIdx);
+  }
+
+  function renderFundListPagination(totalItems, totalPages, startIdx) {
+    var container = $('#fund-list-pagination');
+    if (!container) return;
+
+    if (totalItems === 0 || totalPages <= 1) {
+      container.innerHTML = '<span style="color:var(--muted);font-size:0.85rem;">共 ' + totalItems + ' 条数据</span>';
+      return;
+    }
+
+    var endIdx = Math.min(startIdx + fundListPageSize, totalItems);
+    var pages = [];
+    var startPage = Math.max(1, fundListCurrentPage - 2);
+    var endPage = Math.min(totalPages, fundListCurrentPage + 2);
+
+    pages.push('<button class="page-btn" data-page="' + (fundListCurrentPage - 1) + '" ' + (fundListCurrentPage <= 1 ? 'disabled' : '') + '>上一页</button>');
+
+    if (startPage > 1) {
+      pages.push('<button class="page-btn" data-page="1">1</button>');
+      if (startPage > 2) pages.push('<span class="page-ellipsis">...</span>');
+    }
+
+    for (var p = startPage; p <= endPage; p++) {
+      pages.push('<button class="page-btn' + (p === fundListCurrentPage ? ' active' : '') + '" data-page="' + p + '">' + p + '</button>');
+    }
+
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) pages.push('<span class="page-ellipsis">...</span>');
+      pages.push('<button class="page-btn" data-page="' + totalPages + '">' + totalPages + '</button>');
+    }
+
+    pages.push('<button class="page-btn" data-page="' + (fundListCurrentPage + 1) + '" ' + (fundListCurrentPage >= totalPages ? 'disabled' : '') + '>下一页</button>');
+
+    container.innerHTML =
+      '<div class="page-info">共 ' + totalItems + ' 条，第 ' + fundListCurrentPage + '/' + totalPages + ' 页，显示 ' + (startIdx + 1) + '-' + endIdx + ' 条</div>' +
+      '<div class="page-size-selector">' +
+        '<label>每页</label>' +
+        '<select id="fund-list-page-size">' +
+          '<option value="20"' + (fundListPageSize===20?' selected':'') + '>20</option>' +
+          '<option value="50"' + (fundListPageSize===50?' selected':'') + '>50</option>' +
+          '<option value="100"' + (fundListPageSize===100?' selected':'') + '>100</option>' +
+        '</select>' +
+        '<label>条</label>' +
+      '</div>' +
+      '<div class="page-nav">' + pages.join('') + '</div>';
+
+    container.querySelectorAll('.page-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var pg = parseInt(this.dataset.page, 10);
+        if (!isNaN(pg) && pg >= 1 && pg <= totalPages) {
+          fundListCurrentPage = pg;
+          renderFundList();
+        }
+      });
+    });
+
+    $('#fund-list-page-size').addEventListener('change', function() {
+      fundListPageSize = parseInt(this.value, 10) || 50;
+      fundListCurrentPage = 1;
+      renderFundList();
+    });
   }
 
   // ===== Fund Detail Modal =====
@@ -571,26 +607,28 @@
       $$('.sub-tab').forEach(function(t) { t.classList.remove('active'); });
       tab.classList.add('active');
       currentPeriod = tab.dataset.period;
+      rankCurrentPage = 1;
       renderRanking();
     });
   });
 
-  $('#rank-type').addEventListener('change', function(e) { rankTypeFilter = e.target.value; renderRanking(); });
-  $('#rank-sort').addEventListener('change', function(e) { rankSort = e.target.value; renderRanking(); });
+  $('#rank-type').addEventListener('change', function(e) { rankTypeFilter = e.target.value; rankCurrentPage = 1; renderRanking(); });
+  $('#rank-sort').addEventListener('change', function(e) { rankSort = e.target.value; rankCurrentPage = 1; renderRanking(); });
   $('#rank-refresh').addEventListener('click', refreshAllData);
 
   $('#potential-strategy').addEventListener('change', renderPotential);
   $('#potential-time').addEventListener('change', renderPotential);
   $('#potential-refresh').addEventListener('click', renderPotential);
 
-  $('#fund-search-btn').addEventListener('click', renderFundList);
+  $('#fund-search-btn').addEventListener('click', function() { fundListCurrentPage = 1; renderFundList(); });
   $('#fund-reset').addEventListener('click', function() {
     $('#fund-search').value = '';
     $('#fund-type').value = 'all';
     $('#fund-company').value = 'all';
+    fundListCurrentPage = 1;
     renderFundList();
   });
-  $('#fund-search').addEventListener('keyup', function(e) { if (e.key === 'Enter') renderFundList(); });
+  $('#fund-search').addEventListener('keyup', function(e) { if (e.key === 'Enter') { fundListCurrentPage = 1; renderFundList(); } });
 
   $('#modal-close').addEventListener('click', function() { $('#fund-modal').classList.remove('active'); });
   $('#fund-modal').addEventListener('click', function(e) {
