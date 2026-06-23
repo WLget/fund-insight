@@ -1,0 +1,14 @@
+# ===== Cloudflare Pages 部署配置 =====
+name = "fund-insight"
+compatibility_date = "2026-06-23"
+compatibility_flags = ["nodejs_compat"]
+
+# 构建输出目录（Cloudflare Pages 会自动托管此目录下的静态文件）
+[site]
+bucket = "./"
+
+# KV 命名空间用于缓存基金数据
+# 部署前需要在 Cloudflare Dashboard 创建 KV 命名空间，然后绑定到这里
+# [[kv_namespaces]]
+# binding = "FUND_CACHE"
+# id = "your-kv-namespace-id"
