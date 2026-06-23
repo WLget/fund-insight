@@ -1,5 +1,6 @@
 # ===== Cloudflare Pages 部署配置 =====
 name = "fund-insight"
+pages_build_output_dir = "."
 compatibility_date = "2026-06-23"
 compatibility_flags = ["nodejs_compat"]
 
