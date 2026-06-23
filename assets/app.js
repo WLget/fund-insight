@@ -1,5 +1,5 @@
 // ===== Fund Insight App =====
-// 数据来源: 天天基金网公开API (通过后端代理)
+// 数据来源: 天天基金网公开API (前端直接请求)
 // 自动刷新: 每5分钟
 
 (function() {
@@ -22,41 +22,133 @@
   function $(sel) { return document.querySelector(sel); }
   function $$(sel) { return document.querySelectorAll(sel); }
 
-  // ===== API Base =====
-  const API_BASE = window.location.origin;
+  // ===== CORS Proxy =====
+  // 使用多个公共 CORS 代理，按顺序尝试
+  const CORS_PROXIES = [
+    'https://api.allorigins.win/raw?url=',
+    'https://corsproxy.io/?',
+    'https://api.codetabs.com/v1/proxy?quest=',
+  ];
+
+  async function fetchWithCors(url, proxyIndex) {
+    if (proxyIndex === undefined) proxyIndex = 0;
+    if (proxyIndex >= CORS_PROXIES.length) {
+      throw new Error('所有 CORS 代理均不可用');
+    }
+    const proxyUrl = CORS_PROXIES[proxyIndex] + encodeURIComponent(url);
+    try {
+      const resp = await fetch(proxyUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        },
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp;
+    } catch (err) {
+      console.warn('[CORS] 代理 ' + proxyIndex + ' 失败:', err.message);
+      return fetchWithCors(url, proxyIndex + 1);
+    }
+  }
 
   // ===== API Fetch Functions =====
 
   async function fetchRankData() {
     try {
-      const resp = await fetch(API_BASE + '/api/rank');
-      const json = await resp.json();
-      if (json.code === 0 && json.data) {
-        allFunds = json.data;
-        lastUpdateTime = json.time || Date.now();
-        // 构建类型映射
-        json.data.forEach(f => { fundTypeMap[f.code] = f.type; });
-        return true;
+      const url = 'http://fund.eastmoney.com/data/rankhandler.aspx?op=ph&dt=kf&ft=all&rs=&gs=0&sc=zzf&st=desc&pi=1&pn=10000&dx=1&v=' + Math.random();
+      const resp = await fetchWithCors(url);
+      const text = await resp.text();
+
+      const startIdx = text.indexOf('{');
+      const endIdx = text.lastIndexOf('}');
+      if (startIdx === -1 || endIdx === -1) throw new Error('未找到有效数据');
+      const jsObjStr = text.substring(startIdx, endIdx + 1);
+
+      let raw;
+      try {
+        raw = new Function('return ' + jsObjStr)();
+      } catch (e) {
+        throw new Error('JS对象解析失败: ' + e.message);
       }
-      console.warn('[API] rank returned error:', json.msg);
-      return false;
+
+      const datas = raw && raw.datas ? raw.datas : [];
+      if (datas.length === 0) throw new Error('排行数据为空');
+
+      // 获取类型映射
+      if (Object.keys(fundTypeMap).length === 0) {
+        await fetchFundTypeMap();
+      }
+
+      const records = datas.map(function(item) {
+        var parts = item.split(',');
+        if (parts.length < 16) return null;
+
+        var code = parts[0] || '';
+        var dayVal = parseFloat(parts[6]);
+        var weekVal = parseFloat(parts[7]);
+        var monthVal = parseFloat(parts[8]);
+        var quarterVal = parseFloat(parts[9]);
+        var halfVal = parseFloat(parts[10]);
+        var ytdVal = parseFloat(parts[15]);
+
+        return {
+          code: code,
+          name: parts[1] || '',
+          nav: parseFloat(parts[4]) || 0,
+          cumNav: parseFloat(parts[5]) || 0,
+          dayChange: isNaN(dayVal) ? 0 : dayVal,
+          weekChange: isNaN(weekVal) ? 0 : weekVal,
+          monthChange: isNaN(monthVal) ? 0 : monthVal,
+          quarterChange: isNaN(quarterVal) ? 0 : quarterVal,
+          halfYearChange: isNaN(halfVal) ? 0 : halfVal,
+          yearChange: isNaN(ytdVal) ? 0 : ytdVal,
+          type: fundTypeMap[code] || '',
+          fee: parts[20] || '',
+        };
+      }).filter(Boolean);
+
+      allFunds = records;
+      lastUpdateTime = Date.now();
+      return true;
     } catch (err) {
       console.error('[API] fetch rank failed:', err);
       return false;
     }
   }
 
+  async function fetchFundTypeMap() {
+    try {
+      const url = 'http://fund.eastmoney.com/js/fundcode_search.js';
+      const resp = await fetchWithCors(url);
+      const text = await resp.text();
+      const match = text.match(/var r = (\[[\s\S]*?\]);/);
+      if (match) {
+        const raw = JSON.parse(match[1]);
+        raw.forEach(function(item) {
+          fundTypeMap[item[0]] = item[3];
+        });
+      }
+    } catch (err) {
+      console.warn('[API] fetch type map failed:', err);
+    }
+  }
+
   async function fetchFundList() {
     try {
-      const resp = await fetch(API_BASE + '/api/fund-list');
-      const json = await resp.json();
-      if (json.code === 0 && json.data) {
-        json.data.forEach(f => {
-          if (!fundTypeMap[f.code]) fundTypeMap[f.code] = f.type;
-        });
-        return json.data;
-      }
-      return null;
+      const url = 'http://fund.eastmoney.com/js/fundcode_search.js';
+      const resp = await fetchWithCors(url);
+      const text = await resp.text();
+      const match = text.match(/var r = (\[[\s\S]*?\]);/);
+      if (!match) throw new Error('解析基金列表失败');
+
+      const raw = JSON.parse(match[1]);
+      const funds = raw.map(function(item) {
+        return { code: item[0], name: item[2], type: item[3] };
+      });
+
+      funds.forEach(function(f) {
+        if (!fundTypeMap[f.code]) fundTypeMap[f.code] = f.type;
+      });
+      return funds;
     } catch (err) {
       console.error('[API] fetch fund-list failed:', err);
       return null;
@@ -66,14 +158,64 @@
   async function fetchFundDetail(code) {
     try {
       const [detailResp, infoResp] = await Promise.all([
-        fetch(API_BASE + '/api/fund/' + code + '/detail'),
-        fetch(API_BASE + '/api/fund/' + code + '/info')
+        fetchWithCors('http://fund.eastmoney.com/pingzhongdata/' + code + '.js'),
+        fetchWithCors('http://fund.eastmoney.com/' + code + '.html'),
       ]);
-      const detail = await detailResp.json();
-      const info = await infoResp.json();
+
+      const detailJs = await detailResp.text();
+      const infoHtml = await infoResp.text();
+
+      // 解析净值走势
+      let navHistory = [];
+      const navMatch = detailJs.match(/var Data_netWorthTrend\s*=\s*(\[[\s\S]*?\]);/);
+      if (navMatch) {
+        try {
+          navHistory = JSON.parse(navMatch[1]).map(function(item) {
+            return {
+              date: typeof item.x === 'number' ? new Date(item.x).toISOString().slice(0, 10) : String(item.x),
+              value: parseFloat(item.y) || 0,
+            };
+          });
+        } catch (e) {
+          const items = navMatch[1].match(/\{x:[^}]+\}/g) || [];
+          navHistory = items.map(function(s) {
+            const xm = s.match(/x:(\d+)/);
+            const ym = s.match(/y:([\d.]+)/);
+            return {
+              date: xm ? new Date(parseInt(xm[1])).toISOString().slice(0, 10) : '',
+              value: ym ? parseFloat(ym[1]) : 0,
+            };
+          });
+        }
+      }
+
+      // 解析基金信息
+      let manager = '';
+      const mgrPatterns = [
+        /基金经理[：:]\s*<a[^>]*>([^<]+)<\/a>/,
+        /基金经理[：:]\s*<span[^>]*>([^<]+)<\/span>/,
+        /基金经理[：:]\s*([^\s<,]+(?:[\s,][^\s<,]+)?)/,
+      ];
+      for (var i = 0; i < mgrPatterns.length; i++) {
+        var m = infoHtml.match(mgrPatterns[i]);
+        if (m) { manager = m[1].trim(); break; }
+      }
+
+      let fundSize = '';
+      var sm = infoHtml.match(/基金规模[：:]\s*([\d.]+)\s*亿元/);
+      if (sm) fundSize = sm[1] + '亿元';
+
+      let establishDate = '';
+      var dm = infoHtml.match(/成立日期[：:]\s*(\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2})/);
+      if (dm) establishDate = dm[1].replace(/[\.\/]/g, '-');
+
+      let risk = '';
+      var rm = infoHtml.match(/风险等级[：:]\s*([^<>\s]+)/);
+      if (rm) risk = rm[1].trim();
+
       return {
-        detail: detail.code === 0 ? detail.data : null,
-        info: info.code === 0 ? info.data : null,
+        detail: { navHistory: navHistory },
+        info: { fundSize: fundSize, establishDate: establishDate, manager: manager, risk: risk, code: code },
       };
     } catch (err) {
       console.error('[API] fetch detail failed:', err);
@@ -96,7 +238,7 @@
       if (currentSection === 'market') renderMarket();
       if (currentSection === 'funds') renderFundList();
     } else {
-      $('#rank-tbody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--danger);">数据加载失败，请检查后端服务是否正常启动</td></tr>';
+      $('#rank-tbody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--danger);">数据加载失败，请检查网络连接或稍后重试</td></tr>';
     }
     resetCountdown();
   }
