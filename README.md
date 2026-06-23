@@ -16,48 +16,65 @@
 
 访问 https://dash.cloudflare.com/sign-up 注册账号
 
-### 2. 安装 Wrangler CLI
+### 2. 连接 GitHub 仓库
+
+1. 登录 Cloudflare Dashboard
+2. 左侧菜单点击 **Pages**
+3. 点击 **Create a project**
+4. 选择 **Connect to Git**
+5. 授权 Cloudflare 访问你的 GitHub
+6. 选择 `WLget/fund-insight` 仓库
+7. 点击 **Begin setup**
+
+### 3. 构建设置
+
+在设置页面填写：
+
+| 设置项 | 填写内容 |
+|--------|---------|
+| Project name | `fund-insight` |
+| Production branch | `master` |
+| Framework preset | **None** |
+| Build command | 留空 |
+| Deploy command | `npx wrangler pages deploy . --project-name=fund-insight` |
+| Build output directory | 留空 |
+| Root directory | `/` |
+
+点击 **Save and Deploy**
+
+### 4. 创建 KV 命名空间（缓存用）
+
+这一步需要 Wrangler CLI：
 
 ```bash
 npm install -g wrangler
-```
-
-### 3. 登录 Cloudflare
-
-```bash
 wrangler login
-```
-
-### 4. 创建 KV 命名空间（用于缓存数据）
-
-```bash
 wrangler kv:namespace create "FUND_CACHE"
 ```
 
-执行后会输出类似：
+执行后会输出：
 ```
 { binding = "FUND_CACHE", id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
 ```
 
-### 5. 更新 wrangler.toml
+### 5. 绑定 KV 到项目
 
-将上一步输出的 id 填入 `wrangler.toml`：
+1. 在 Cloudflare Dashboard 进入你的 Pages 项目
+2. 点击 **Settings** → **Functions**
+3. 找到 **KV namespace bindings**
+4. 点击 **Add binding**
+5. Variable name 填 `FUND_CACHE`
+6. KV namespace 选择你刚才创建的
+7. 点击 **Save**
 
-```toml
-[[kv_namespaces]]
-binding = "FUND_CACHE"
-id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+### 6. 重新部署
+
+回到项目页面，点击 **Retry deployment**。
+
+部署成功后访问：
 ```
-
-### 6. 部署到 Cloudflare Pages
-
-```bash
-wrangler pages deploy .
+https://fund-insight.pages.dev
 ```
-
-### 7. 绑定自定义域名（可选）
-
-在 Cloudflare Dashboard -> Pages -> 你的项目 -> Custom domains 中添加域名
 
 ## 项目结构
 
@@ -67,7 +84,7 @@ fund-insight/
 ├── assets/
 │   ├── app.js              # 前端业务逻辑
 │   ├── charts.js           # ECharts 图表配置
-│   └── ...                 # 其他资源
+│   └── ...
 ├── functions/
 │   └── api/
 │       └── [[path]].js     # Cloudflare Pages Functions API

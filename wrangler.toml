@@ -1,8 +1,9 @@
-# ===== Cloudflare Pages 部署配置 =====
+# Cloudflare Pages 配置
+# 注意：pages_build_output_dir 是顶层字段，不是 [site] 下的
 name = "fund-insight"
-pages_build_output_dir = "."
 compatibility_date = "2026-06-23"
 compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "."
 
 # KV 命名空间用于缓存基金数据
 # 部署前需要在 Cloudflare Dashboard 创建 KV 命名空间，然后绑定到这里
