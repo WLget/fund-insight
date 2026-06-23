@@ -23,31 +23,15 @@
   function $$(sel) { return document.querySelectorAll(sel); }
 
   // ===== CORS Proxy =====
-  // 使用多个公共 CORS 代理，按顺序尝试
-  const CORS_PROXIES = [
-    'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?',
-    'https://api.codetabs.com/v1/proxy?quest=',
-  ];
+  // Cloudflare Worker 专用代理，解决天天基金网跨域和反爬问题
+  // 部署教程见仓库根目录 cors-proxy.js
+  const PROXY_URL = 'https://fund-insight-proxy.wlget.workers.dev/?url=';
 
-  async function fetchWithCors(url, proxyIndex) {
-    if (proxyIndex === undefined) proxyIndex = 0;
-    if (proxyIndex >= CORS_PROXIES.length) {
-      throw new Error('所有 CORS 代理均不可用');
-    }
-    const proxyUrl = CORS_PROXIES[proxyIndex] + encodeURIComponent(url);
-    try {
-      const resp = await fetch(proxyUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        },
-      });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      return resp;
-    } catch (err) {
-      console.warn('[CORS] 代理 ' + proxyIndex + ' 失败:', err.message);
-      return fetchWithCors(url, proxyIndex + 1);
-    }
+  async function fetchWithCors(url) {
+    const proxyUrl = PROXY_URL + encodeURIComponent(url);
+    const resp = await fetch(proxyUrl);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp;
   }
 
   // ===== API Fetch Functions =====
